@@ -117,7 +117,7 @@ function createPendingOrder(PDO $pdo, ?int $userId, array $checkoutData): int
     }
 }
 
-function markOrderStripeSession(PDO $pdo, int $orderId, string $checkoutSessionId): void
+function markOrderPaymentReference(PDO $pdo, int $orderId, string $gatewayOrderId): void
 {
     $stmt = $pdo->prepare(
         'UPDATE orders
@@ -125,7 +125,7 @@ function markOrderStripeSession(PDO $pdo, int $orderId, string $checkoutSessionI
          WHERE id = :id'
     );
     $stmt->execute([
-        ':stripe_checkout_session_id' => $checkoutSessionId,
+        ':stripe_checkout_session_id' => $gatewayOrderId,
         ':id' => $orderId,
     ]);
 }

@@ -21,13 +21,16 @@ function cartEscape(?string $value): string
 
 function cartImageUrl(string $url): string
 {
-    if (!filter_var($url, FILTER_VALIDATE_URL)) {
-        return '../assets/images/product-placeholder.svg';
+    if (filter_var($url, FILTER_VALIDATE_URL)) {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
     }
 
-    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if ($url !== '') {
+        return '../' . ltrim($url, '/');
+    }
 
-    return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
+    return '../assets/images/product-placeholder.svg';
 }
 
 $cart = getCart();
@@ -196,11 +199,101 @@ require_once __DIR__ . '/../includes/header.php';
                             <dd>$<?php echo cartEscape(number_format($estimatedTotal, 2)); ?></dd>
                         </div>
                     </dl>
-                    <p>Checkout opens Stripe Sandbox. Use Stripe test card 4242 4242 4242 4242.</p>
-                    <form method="post" action="create_checkout_session.php">
+                    <p>Checkout opens Razorpay test mode with UPI, Net Banking, Cards, and Wallets.</p>
+                    <form id="razorpay-checkout-form" method="post" action="create_checkout_session.php">
                         <?php echo csrfField(); ?>
-                        <button class="button button-primary" type="submit">Checkout with Stripe</button>
+                        <button class="button button-primary" id="razorpay-pay-button" type="button">Pay Securely (UPI / Net Banking / Cards)</button>
                     </form>
+                    <p class="client-search-status" id="razorpay-checkout-status" aria-live="polite"></p>
+                    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+                    <script>
+                        const razorpayForm = document.querySelector('#razorpay-checkout-form');
+                        const razorpayButton = document.querySelector('#razorpay-pay-button');
+                        const razorpayStatus = document.querySelector('#razorpay-checkout-status');
+
+                        function setCheckoutStatus(message) {
+                            if (razorpayStatus) {
+                                razorpayStatus.textContent = message;
+                            }
+                        }
+
+                        async function postCheckoutAction(payload) {
+                            const response = await fetch('create_checkout_session.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                    'Accept': 'application/json'
+                                },
+                                body: new URLSearchParams(payload)
+                            });
+
+                            const data = await response.json();
+
+                            if (!response.ok || !data.success) {
+                                throw new Error(data.message || 'Checkout failed.');
+                            }
+
+                            return data;
+                        }
+
+                        if (razorpayForm && razorpayButton) {
+                            razorpayButton.addEventListener('click', async () => {
+                                const csrfToken = razorpayForm.querySelector('input[name="csrf_token"]')?.value || '';
+                                razorpayButton.disabled = true;
+                                setCheckoutStatus('Preparing secure payment...');
+
+                                try {
+                                    const order = await postCheckoutAction({
+                                        action: 'create_order',
+                                        csrf_token: csrfToken
+                                    });
+
+                                    const checkout = new Razorpay({
+                                        key: order.key_id,
+                                        amount: order.amount,
+                                        currency: order.currency,
+                                        name: order.name,
+                                        description: order.description,
+                                        order_id: order.order_id,
+                                        prefill: {
+                                            name: order.customer_name,
+                                            email: order.customer_email
+                                        },
+                                        theme: {
+                                            color: '#0f766e'
+                                        },
+                                        handler: async (paymentResponse) => {
+                                            setCheckoutStatus('Verifying payment...');
+                                            const verified = await postCheckoutAction({
+                                                action: 'verify_payment',
+                                                csrf_token: csrfToken,
+                                                razorpay_order_id: paymentResponse.razorpay_order_id,
+                                                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                                                razorpay_signature: paymentResponse.razorpay_signature
+                                            });
+
+                                            window.location.href = verified.redirect_url;
+                                        },
+                                        modal: {
+                                            ondismiss: () => {
+                                                window.location.href = 'checkout_cancel.php';
+                                            }
+                                        }
+                                    });
+
+                                    checkout.on('payment.failed', () => {
+                                        window.location.href = 'checkout_cancel.php';
+                                    });
+
+                                    checkout.open();
+                                    setCheckoutStatus('Complete payment in the Razorpay popup.');
+                                } catch (error) {
+                                    setCheckoutStatus(error.message);
+                                    razorpayButton.disabled = false;
+                                }
+                            });
+                        }
+                    </script>
                 </aside>
             </div>
         <?php endif; ?>
