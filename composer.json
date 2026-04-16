@@ -1,0 +1,9 @@
+{
+    "name": "unishop/ecommerce-university-project",
+    "description": "University-level secure PHP e-commerce project with Stripe sandbox checkout.",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "stripe/stripe-php": "^17.0"
+    }
+}
