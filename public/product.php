@@ -15,22 +15,32 @@ function productEscape(?string $value): string
 
 function productImageUrl(string $url): string
 {
-    if (!filter_var($url, FILTER_VALIDATE_URL)) {
-        return '../assets/images/product-placeholder.svg';
+    if (filter_var($url, FILTER_VALIDATE_URL)) {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
     }
 
-    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if ($url !== '') {
+        return '../' . ltrim($url, '/');
+    }
 
-    return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
+    return '../assets/images/product-placeholder.svg';
 }
 
 $slug = (string) filter_input(INPUT_GET, 'slug', FILTER_UNSAFE_RAW);
+$productId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 
-if (!preg_match('/^[a-z0-9-]{1,200}$/', $slug)) {
+if ($slug !== '' && !preg_match('/^[a-z0-9-]{1,200}$/', $slug)) {
     http_response_code(404);
     exit('Product not found.');
 }
 
+if ($slug === '' && !$productId) {
+    http_response_code(404);
+    exit('Product not found.');
+}
+
+$whereSql = $slug !== '' ? 'p.slug = :slug' : 'p.id = :id';
 $productStmt = $pdo->prepare(
     'SELECT
         p.id,
@@ -38,6 +48,7 @@ $productStmt = $pdo->prepare(
         p.slug,
         p.description,
         p.price,
+        p.discount_percent,
         p.image_url,
         p.stock_qty,
         p.seo_keywords,
@@ -45,10 +56,10 @@ $productStmt = $pdo->prepare(
         c.slug AS category_slug
      FROM products p
      INNER JOIN categories c ON c.id = p.category_id
-     WHERE p.slug = :slug
+     WHERE ' . $whereSql . '
      LIMIT 1'
 );
-$productStmt->execute([':slug' => $slug]);
+$productStmt->execute($slug !== '' ? [':slug' => $slug] : [':id' => $productId]);
 $product = $productStmt->fetch();
 
 if (!$product) {
@@ -80,7 +91,17 @@ require_once __DIR__ . '/../includes/header.php';
             <p><?php echo productEscape((string) $product['description']); ?></p>
 
             <div class="product-meta product-detail-meta">
-                <span class="price">$<?php echo productEscape(number_format((float) $product['price'], 2)); ?></span>
+                <span class="price">
+                    <?php
+                    $discount = (float) $product['discount_percent'];
+                    $price = (float) $product['price'];
+                    $salePrice = $discount > 0 ? $price * (1 - ($discount / 100)) : $price;
+                    ?>
+                    $<?php echo productEscape(number_format($salePrice, 2)); ?>
+                    <?php if ($discount > 0): ?>
+                        <span class="discount-badge"><?php echo productEscape(number_format($discount, 0)); ?>% off</span>
+                    <?php endif; ?>
+                </span>
                 <span class="stock">
                     <?php echo (int) $product['stock_qty'] > 0 ? (int) $product['stock_qty'] . ' in stock' : 'Out of stock'; ?>
                 </span>
@@ -108,3 +129,5 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 require_once __DIR__ . '/../includes/footer.php';
+
+

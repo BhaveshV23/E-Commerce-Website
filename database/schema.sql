@@ -1,4 +1,4 @@
--- Phase 1 database foundation for the university E-Commerce project.
+﻿-- Phase 1 database foundation for the university E-Commerce project.
 -- Run this file in MySQL before connecting the PHP application.
 
 CREATE DATABASE IF NOT EXISTS ecommerce_university
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS products (
     slug VARCHAR(200) NOT NULL UNIQUE,
     description TEXT NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
+    discount_percent DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
     image_url VARCHAR(255) NOT NULL,
     stock_qty INT UNSIGNED NOT NULL DEFAULT 0,
     seo_keywords VARCHAR(255) NULL,
@@ -167,3 +168,4 @@ CREATE TABLE IF NOT EXISTS newsletter_queue (
     processed_at TIMESTAMP NULL,
     UNIQUE KEY uq_newsletter_queue_email (email)
 ) ENGINE=InnoDB;
+

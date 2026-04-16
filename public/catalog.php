@@ -38,13 +38,16 @@ function e(?string $value): string
  */
 function safeImageUrl(string $url): string
 {
-    if (!filter_var($url, FILTER_VALIDATE_URL)) {
-        return '../assets/images/product-placeholder.svg';
+    if (filter_var($url, FILTER_VALIDATE_URL)) {
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
     }
 
-    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if ($url !== '') {
+        return '../' . ltrim($url, '/');
+    }
 
-    return in_array($scheme, ['http', 'https'], true) ? $url : '../assets/images/product-placeholder.svg';
+    return '../assets/images/product-placeholder.svg';
 }
 
 $searchTerm = trim((string) filter_input(INPUT_GET, 'q', FILTER_UNSAFE_RAW));
@@ -73,6 +76,7 @@ $sql = 'SELECT
             p.slug,
             p.description,
             p.price,
+            p.discount_percent,
             p.image_url,
             p.stock_qty,
             p.seo_keywords,
@@ -207,7 +211,17 @@ require_once __DIR__ . '/../includes/header.php';
                                 <h3><a class="product-title-link" href="<?php echo e(productUrl((string) $product['slug'])); ?>"><?php echo e($product['title']); ?></a></h3>
                                 <p><?php echo e($product['description']); ?></p>
                                 <div class="product-meta">
-                                    <span class="price">$<?php echo e(number_format((float) $product['price'], 2)); ?></span>
+                                    <span class="price">
+                                        <?php
+                                        $discount = (float) $product['discount_percent'];
+                                        $price = (float) $product['price'];
+                                        $salePrice = $discount > 0 ? $price * (1 - ($discount / 100)) : $price;
+                                        ?>
+                                        $<?php echo e(number_format($salePrice, 2)); ?>
+                                        <?php if ($discount > 0): ?>
+                                            <span class="discount-badge"><?php echo e(number_format($discount, 0)); ?>% off</span>
+                                        <?php endif; ?>
+                                    </span>
                                     <span class="stock">
                                         <?php echo (int) $product['stock_qty'] > 0 ? (int) $product['stock_qty'] . ' in stock' : 'Out of stock'; ?>
                                     </span>
@@ -238,3 +252,5 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 require_once __DIR__ . '/../includes/footer.php';
+
+
