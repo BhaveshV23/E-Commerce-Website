@@ -1,4 +1,4 @@
-﻿-- Phase 1 database foundation for the university E-Commerce project.
+-- Phase 1 database foundation for the university E-Commerce project.
 -- Run this file in MySQL before connecting the PHP application.
 
 CREATE DATABASE IF NOT EXISTS ecommerce_university
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS products (
         ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
--- Orders and order_items will be populated after Stripe checkout in Phase 5.
+-- Orders and order_items are populated after payment confirmation.
 CREATE TABLE IF NOT EXISTS orders (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NULL,
