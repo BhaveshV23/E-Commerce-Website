@@ -73,6 +73,9 @@ $cartCount = getCartCount();
                     <li><a href="register.php">Register</a></li>
                     <li><a class="nav-cta" href="login.php">Sign In</a></li>
                 <?php endif; ?>
+                <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
+                    <a href="/E-Commerce-Website/admin/dashboard.php">Admin</a>
+                <?php endif; ?>
             </ul>
         </nav>
     </header>

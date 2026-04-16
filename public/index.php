@@ -1,10 +1,13 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../includes/seo.php';
+
 $pageTitle = 'UniShop | Secure E-Commerce Learning Store';
 $pageDescription = 'A responsive PHP e-commerce homepage built with secure, modular architecture.';
 $assetBasePath = '../assets';
-$canonicalUrl = 'http://localhost:8000/index.php';
+$canonicalUrl = appUrl('index.php');
 $newsletterRedirect = 'index.php#newsletter';
 $structuredData = [[
     '@context' => 'https://schema.org',
@@ -13,10 +16,38 @@ $structuredData = [[
     'url' => $canonicalUrl,
     'potentialAction' => [
         '@type' => 'SearchAction',
-        'target' => 'http://localhost:8000/catalog.php?q={search_term_string}',
+        'target' => appUrl('catalog.php?q={search_term_string}'),
         'query-input' => 'required name=search_term_string',
     ],
 ]];
+
+function homeEscape(?string $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function homeImageUrl(string $path): string
+{
+    if (filter_var($path, FILTER_VALIDATE_URL)) {
+        return $path;
+    }
+
+    if ($path !== '') {
+        return '../' . ltrim($path, '/');
+    }
+
+    return '../assets/images/product-placeholder.svg';
+}
+
+$featuredStmt = $pdo->prepare(
+    'SELECT p.id, p.title, p.slug, p.description, p.price, p.discount_percent, p.image_url, p.stock_qty, c.name AS category_name
+     FROM products p
+     INNER JOIN categories c ON c.id = p.category_id
+     ORDER BY p.created_at DESC, p.id DESC
+     LIMIT 6'
+);
+$featuredStmt->execute();
+$featuredProducts = $featuredStmt->fetchAll();
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -67,49 +98,42 @@ require_once __DIR__ . '/../includes/header.php';
     <section class="section featured-section" id="featured-products" aria-labelledby="featured-title">
         <div class="section-heading">
             <p class="eyebrow">Featured products</p>
-            <h2 id="featured-title">Popular picks customers love right now.</h2>
+            <h2 id="featured-title">Latest products from the admin catalog.</h2>
         </div>
 
-        <div class="product-grid">
-            <article class="product-card">
-                <div class="product-image product-image-headphones" role="img" aria-label="Wireless study headphones"></div>
-                <div class="product-details">
-                    <p class="product-category">Electronics</p>
-                    <h3>Wireless Study Headphones</h3>
-                    <p>Noise-reducing headphones designed for focused study sessions.</p>
-                    <div class="product-meta">
-                        <span class="price">$59.99</span>
-                        <span class="stock">In stock</span>
-                    </div>
-                </div>
-            </article>
-
-            <article class="product-card">
-                <div class="product-image product-image-backpack" role="img" aria-label="Campus backpack"></div>
-                <div class="product-details">
-                    <p class="product-category">Fashion</p>
-                    <h3>Campus Backpack</h3>
-                    <p>Durable backpack with organized laptop and book storage.</p>
-                    <div class="product-meta">
-                        <span class="price">$44.50</span>
-                        <span class="stock">In stock</span>
-                    </div>
-                </div>
-            </article>
-
-            <article class="product-card">
-                <div class="product-image product-image-desk" role="img" aria-label="Desk organizer set"></div>
-                <div class="product-details">
-                    <p class="product-category">Home Essentials</p>
-                    <h3>Desk Organizer Set</h3>
-                    <p>Minimal organizer set for keeping a clean and productive workspace.</p>
-                    <div class="product-meta">
-                        <span class="price">$24.99</span>
-                        <span class="stock">In stock</span>
-                    </div>
-                </div>
-            </article>
-        </div>
+        <?php if ($featuredProducts === []): ?>
+            <div class="empty-state">
+                <h3>No featured products yet.</h3>
+                <p>Add products from the admin dashboard to publish them here.</p>
+            </div>
+        <?php else: ?>
+            <div class="product-grid">
+                <?php foreach ($featuredProducts as $product): ?>
+                    <?php
+                    $discount = (float) $product['discount_percent'];
+                    $price = (float) $product['price'];
+                    $salePrice = $discount > 0 ? $price * (1 - ($discount / 100)) : $price;
+                    ?>
+                    <article class="product-card">
+                        <img class="catalog-product-image" src="<?php echo homeEscape(homeImageUrl((string) $product['image_url'])); ?>" alt="<?php echo homeEscape((string) $product['title']); ?>" loading="lazy">
+                        <div class="product-details">
+                            <p class="product-category"><?php echo homeEscape((string) $product['category_name']); ?></p>
+                            <h3><a class="product-title-link" href="<?php echo homeEscape(productUrl((string) $product['slug'])); ?>"><?php echo homeEscape((string) $product['title']); ?></a></h3>
+                            <p><?php echo homeEscape((string) $product['description']); ?></p>
+                            <div class="product-meta">
+                                <span class="price">
+                                    $<?php echo homeEscape(number_format($salePrice, 2)); ?>
+                                    <?php if ($discount > 0): ?>
+                                        <span class="discount-badge"><?php echo homeEscape(number_format($discount, 0)); ?>% off</span>
+                                    <?php endif; ?>
+                                </span>
+                                <span class="stock"><?php echo (int) $product['stock_qty'] > 0 ? (int) $product['stock_qty'] . ' in stock' : 'Out of stock'; ?></span>
+                            </div>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </section>
 </main>
 
